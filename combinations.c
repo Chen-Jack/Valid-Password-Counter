@@ -7,6 +7,7 @@ int main(int args, char* inputs[]){
     if(args == 2);//no digit restrictions
     if(args == 3); //digit restriction
 
+    //Add an enumeration for valid and invalid combination
 
     const int lowest_password = pow(2, inputs[0]);
     const int highest_password = pow(2, inputs[1]);
