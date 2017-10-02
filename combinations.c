@@ -1,8 +1,15 @@
 #include<mpi.h>
-#include<math.h>
 #include<stdio.h>
+#include<stdlib.h>
 
+int power(int a, int b){
+  int sum = 0;
+  for(int i=0; i<b; i++){
+    sum+= a;
+  }
+  return sum;	
 
+}
 void checkCriteria(int localsize,int* localvalues, int* localresults);
 void checkLeftAndRightDigit(int size, int* values , int* results);
 void checkConsecutiveDuplicates(int size, int* values, int* results);
@@ -21,8 +28,8 @@ int main(int args, char* inputs[]){
     //if(args == 3); //digit restriction
 
 //"Global" processor variables---------------------------------------------------
-    const int root_lowest_password = pow(2, atoi(inputs[0]));
-    const int root_highest_password = pow(2, atoi(inputs[1]));
+    const int root_lowest_password = power(2, atoi(inputs[0]));
+    const int root_highest_password = power(2, atoi(inputs[1]));
     const int root_arr_size = root_highest_password - root_lowest_password; //Find another way to solve this later.
     
     int processor_count;
@@ -183,7 +190,7 @@ int extractLeastSignificantDigit(int n){
 //The 0th digit is the most significant digit
 int extractNthDigit(int digit, int value){
     int len = length(value);
-    value = value/pow(10,len - 1 - digit);
+    value = value/power(10,len - 1 - digit);
     return value % 10;
 }
 
