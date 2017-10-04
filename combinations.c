@@ -3,9 +3,9 @@
 #include<stdlib.h>
 
 int power(int a, int b){
-  int sum = 0;
+  int sum = 1;
   for(int i=0; i<b; i++){
-    sum+= a;
+    sum*= a;
   }
   return sum;	
 
@@ -23,27 +23,38 @@ int length( int n );
 
 
 int main(int args, char* inputs[]){
-    //if(args < 2 || args > 3){ abort();}
+    //This program works... but idk if the number of processors is even.
+    //inputs[0] = comb
+    //inputs[1] = low, inputs[2] = high, inputs[3] = restriction(optional)
+    // if(args < 2 || args > 3){ 
+    //     printf("Invalid amount of arguments.\n");
+    //     abort();}
     //if(args == 2);//no digit restrictions
     //if(args == 3); //digit restriction
 
+    
+
 //"Global" processor variables---------------------------------------------------
-    const int root_lowest_password = power(2, atoi(inputs[0]));
-    const int root_highest_password = power(2, atoi(inputs[1]));
-    const int root_arr_size = root_highest_password - root_lowest_password; //Find another way to solve this later.
+    MPI_Init(&args, &inputs);
+    int root_lowest_password = 0;
+    int root_highest_password = power(10, atoi(inputs[2]))-1;
+    int root_arr_size = root_highest_password - root_lowest_password + 1; //Find another way to solve this later.
     
     int processor_count;
     MPI_Comm_size(MPI_COMM_WORLD, &processor_count);
-
-
-    MPI_Init(&args, &inputs);
+    printf("Processor Count: %d\n\n",processor_count);
    
     int id;       //ID of the process
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
 
+    if(id == 0){
+        printf(" Lowest password: %d\n Highest password: %d\n Root_arr_size: %d\n\n", 
+        root_lowest_password, root_highest_password, root_arr_size);
+    }
+
 //Individual Processor variables ---------------------------------------------
     int local_arr_size = root_arr_size / processor_count;      //Check later that int vs double wont matter
-    int local_values[local_arr_size];   		  	  //Every processor gets floor(n/p) tasks
+    char* local_values[local_arr_size];   		  	  //we will work with strings initally.
     int local_results[local_arr_size];
     
     for(int i=0 ; i<local_arr_size; i++ ){  //Later, try to cyclically balance this.
@@ -52,7 +63,6 @@ int main(int args, char* inputs[]){
         local_min_value++;
     }
     for(int i=0; i<local_arr_size; i++){ local_results[i] = 1;} //By default everything is a valid entry until checked.
-
 
     //Apply multiple checks, which will leave a final state for localresults.
     checkCriteria(local_arr_size, local_values, local_results);
@@ -65,6 +75,9 @@ int main(int args, char* inputs[]){
             sum_Valid_Passwords++;
         }
     }
+    printf("Local Size: %d\n", local_arr_size);
+
+    //printf("Local Total: %d", sum_Valid_Passwords);
 
     int finalTotalValidPasswords = 0;
     MPI_Reduce(&sum_Valid_Passwords, &finalTotalValidPasswords, 1, MPI_INT, MPI_SUM, 0 ,MPI_COMM_WORLD); //Reduce the sums
@@ -72,7 +85,7 @@ int main(int args, char* inputs[]){
     MPI_Finalize(); //Ending of MPI environment
 
     if(id == 0){
-        printf("%d\n", finalTotalValidPasswords);
+        printf("Final: %d\n", finalTotalValidPasswords);
     }
 
     return 0;
@@ -82,11 +95,11 @@ int main(int args, char* inputs[]){
 //Restrictions for combinations ===============================================
 
 void checkCriteria(int localsize,int* localvalues, int* localresults){
-    checkLeftAndRightDigit(localsize, localvalues, localresults);
-    checkConsecutiveDuplicates(localsize, localvalues, localresults);
-    checkMoreThanTwoDuplicates(localsize, localvalues, localresults);
-    checkMultiplesOfValues(localsize, localvalues, localresults);
-    checkMultipleOfLength(localsize, localvalues, localresults);
+    //checkLeftAndRightDigit(localsize, localvalues, localresults);
+    //checkConsecutiveDuplicates(localsize, localvalues, localresults);
+    //checkMoreThanTwoDuplicates(localsize, localvalues, localresults);
+    //checkMultiplesOfValues(localsize, localvalues, localresults);
+    //checkMultipleOfLength(localsize, localvalues, localresults);
 }
 
 //Takes two arrays of some size, input some array of decimal numbers and it 
