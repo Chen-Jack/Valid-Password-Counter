@@ -7,4 +7,4 @@ Password Pool: 000, 001, 002 ... 0000, 0001 ... 00000, 00001 ... 99998, 99999 <b
 </i>
 
 <br/>
-Provided some conditions such as, <i>"let no consecutive digits be the same"</i> or <i>"let the sum of the digits not be a divisor of 4"</i> the program will compute in parallel using a message passing approach the amount of valid combinations within our pool.
+Provided a collection of conditions such as, <i>"let no consecutive digits be the same"</i> or <i>"let the sum of the digits not be a divisor of 4"</i> the program will compute in parallel using a message passing approach the amount of valid combinations within our pool.
