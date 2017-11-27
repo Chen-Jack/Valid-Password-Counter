@@ -1,219 +1,264 @@
+/*
+Title : combinations.c
+Author : Jack Chen
+Created on : Oct 11, 2017
+Description : The user inputs two integers which correspond to the min and max
+  lengths of a combination. The program first determines how many combinations
+  it needs to check and cyclic distributes it to each processor. Afterwards, 
+  each processor creates a string representation of each value. This is done 
+  to make the implmentation of each condition more simple. Each processor applys
+  the conditions on the values and keeps a sum of their local valid combinations. 
+  In the end, all processors pass theirsum into a final value at id = 0;
+Purpose :
+  To determine the amount of valid combinations given some length boundries
+  and some conditional constraints.
+Usage : mpirun -np P combatinions X Y Z
+  P is the amount of processors you want your program to run on.
+  X is the shortest length your combination can be.
+  Y is the longest length your combination can be.
+  Z is the digit your combination cannot have (Optional).
+Build with : mpicc -o combinations combinations.c 
+            or if math library needs to be linked ...
+            mpicc -o combinations combinations.c -lm 
+*/
+
 #include<mpi.h>
+#include<math.h>
 #include<stdio.h>
 #include<stdlib.h>
+#include<string.h>
 
-int power(int a, int b){
-  int sum = 1;
-  for(int i=0; i<b; i++){
-    sum*= a;
+//Checks to see if the arguments being passed into the program is valid. The
+//function will terminate the program is it finds an invalid argument.
+void errorCheck(int id, int arg_count, char* arguments[]);
+
+//Converts a char to its int literal value.
+int chartoi(char c);
+
+//Takes some absolute value of our complete combination pool, determines its
+//relative value with respect the starting length 'low, and then creates a
+//string of its relative integer value.
+char* createStringValue(int absolute_val, int low);
+
+//A function that calls all the other combination criterias. Will return a 1
+//if the combination passes every criteria. Else, will return a 0.
+int checkConditions(char* combination, int restricted_digit);
+
+//Checks if the combination contains a restricted digit.
+int checkRestrictedDigit(char* combination, int restricted_digit);
+
+//Checks if the first and last digit of the combination is the same.
+int checkFirstAndLastDigit(char* combination);
+
+//Checks that there are no consecutive duplicate digits.
+int checkConsecutiveDuplicates(char* combination);
+
+//Checks that no digit occurs more than twice in a combination.
+int checkMoreThanTwoDuplicates(char* combination);
+
+//Checks if the sum of the digits in the combination is not a multiple of
+//the following, 7,11,13,17.
+int checkMultiplesOfValues(char* combination);
+
+//Checks if the combination is a multiple of its length.
+int checkMultipleOfLength(char* combination);
+
+
+const int DIGIT_BASE = 10;  //We are working with a decimal based system.
+
+int main(int arg_count, char* args[]){
+  
+  int lowest_comb_len;
+  int highest_comb_len;
+  int restricted_digit;
+  int processor_count;
+  int id;
+
+  MPI_Init(&arg_count, &args);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  double start_time = MPI_Wtime();
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &id);
+  MPI_Comm_size(MPI_COMM_WORLD, &processor_count);
+
+  //Check if arguments were actually valid before doing actual computations.
+  errorCheck(id, arg_count, args);  
+
+  //Preparing variables needed for parallel work.
+  lowest_comb_len = atoi(args[1]);
+  highest_comb_len = atoi(args[2]);
+  if(arg_count == 4) 
+    restricted_digit = atoi(args[3]);
+  else 
+    restricted_digit = -1;  //Doesn't matter, set to any non decimal digit.  
+
+  //Calculating total combinations
+  int total_combinations = 0; 
+  for(int length=lowest_comb_len; length<=highest_comb_len; length++){
+    total_combinations += pow(DIGIT_BASE, length);
   }
-  return sum;	
 
+  //Start parallel work;
+  int valid_combinations = 0;
+  for(int i=id;i<total_combinations;i+= processor_count){ //Cyclic load balance
+    char* combination = createStringValue(i, lowest_comb_len);
+    if(checkConditions(combination, restricted_digit)){
+      valid_combinations++;
+    }
+  }
+
+  //Combining parallel work to determine solution.
+  int final_answer;
+  MPI_Reduce(&valid_combinations, &final_answer, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+  double total_time = MPI_Wtime() - start_time; //Already syncronized after MPI_Reduce
+
+  if(id == 0){
+    printf("Total Valid Combinations: %d\n", final_answer);
+    printf("Total Run TIme: %f sec(s)\n", total_time);
+  }
+
+  MPI_Finalize();
+
+  return 0;
 }
-void checkCriteria(int localsize,int* localvalues, int* localresults);
-void checkLeftAndRightDigit(int size, int* values , int* results);
-void checkConsecutiveDuplicates(int size, int* values, int* results);
-void checkMoreThanTwoDuplicates(int size, int* values, int* results);
-void checkMultiplesOfValues(int size, int* values, int* results);
-void checkMultipleOfLength(int size, int* values, int* results);
-int extractMostSignificantDigit(int n);
-int extractLeastSignificantDigit(int n);
-int extractNthDigit(int digit, int value);
-int length( int n );
 
+//Function Definitions ---------------------------
 
-int main(int args, char* inputs[]){
-    //This program works... but idk if the number of processors is even.
-    //inputs[0] = comb
-    //inputs[1] = low, inputs[2] = high, inputs[3] = restriction(optional)
-    // if(args < 2 || args > 3){ 
-    //     printf("Invalid amount of arguments.\n");
-    //     abort();}
-    //if(args == 2);//no digit restrictions
-    //if(args == 3); //digit restriction
+int checkConditions(char* combination, int restricted_digit){
+  if (checkFirstAndLastDigit(combination) == 0) return 0;
+  else if (checkConsecutiveDuplicates(combination) == 0) return 0; 
+  else if (checkMultipleOfLength(combination) == 0) return 0; 
+  else if (checkMultiplesOfValues(combination) == 0) return 0;
+  else if (checkMoreThanTwoDuplicates(combination) == 0) return 0;
+  else if (checkRestrictedDigit(combination, restricted_digit) == 0) return 0; 
+  else return 1; //If checkCondition still hasn't returned 0, then the combination passed.
+}
 
-    
+//Checks to see if your combination contains the restricted digit.
+int checkRestrictedDigit(char* combination, int restricted_digit){
+  int length = strlen(combination);
+  for(int i=0; i<length; i++){
+    if(chartoi(combination[i]) == restricted_digit) 
+      return 0;
+  }
+  return 1;
+}
 
-//"Global" processor variables---------------------------------------------------
-    MPI_Init(&args, &inputs);
-    int root_lowest_password = 0;
-    int root_highest_password = power(10, atoi(inputs[2]))-1;
-    int root_arr_size = root_highest_password - root_lowest_password + 1; //Find another way to solve this later.
-    
-    int processor_count;
-    MPI_Comm_size(MPI_COMM_WORLD, &processor_count);
-    printf("Processor Count: %d\n\n",processor_count);
-   
-    int id;       //ID of the process
-    MPI_Comm_rank(MPI_COMM_WORLD, &id);
-
-    if(id == 0){
-        printf(" Lowest password: %d\n Highest password: %d\n Root_arr_size: %d\n\n", 
-        root_lowest_password, root_highest_password, root_arr_size);
-    }
-
-//Individual Processor variables ---------------------------------------------
-    int local_arr_size = root_arr_size / processor_count;      //Check later that int vs double wont matter
-    char* local_values[local_arr_size];   		  	  //we will work with strings initally.
-    int local_results[local_arr_size];
-    
-    for(int i=0 ; i<local_arr_size; i++ ){  //Later, try to cyclically balance this.
-        int local_min_value = root_lowest_password + (id * local_arr_size);
-        local_values[i] = local_min_value;
-        local_min_value++;
-    }
-    for(int i=0; i<local_arr_size; i++){ local_results[i] = 1;} //By default everything is a valid entry until checked.
-
-    //Apply multiple checks, which will leave a final state for localresults.
-    checkCriteria(local_arr_size, local_values, local_results);
-
-
-    //Done checking all possible combinations
-    int sum_Valid_Passwords = 0;
-    for(int i=0; i<local_arr_size; i++){
-        if(local_results[i] == 1){
-            sum_Valid_Passwords++;
-        }
-    }
-    printf("Local Size: %d\n", local_arr_size);
-
-    //printf("Local Total: %d", sum_Valid_Passwords);
-
-    int finalTotalValidPasswords = 0;
-    MPI_Reduce(&sum_Valid_Passwords, &finalTotalValidPasswords, 1, MPI_INT, MPI_SUM, 0 ,MPI_COMM_WORLD); //Reduce the sums
-    
-    MPI_Finalize(); //Ending of MPI environment
-
-    if(id == 0){
-        printf("Final: %d\n", finalTotalValidPasswords);
-    }
-
+//Checks if the first and last digit are the same.
+int checkFirstAndLastDigit(char* combination){ 
+  int length = strlen(combination);
+  if(combination[0] == combination[length-1]) 
     return 0;
+  else 
+    return 1; 
+}
+
+//Checks to see if given some digit in your combo, whether the following
+//digit is the same.
+int checkConsecutiveDuplicates(char* combination){
+  int length = strlen(combination);
+  for(int i=0; i<length-1; i++){            //No need to check the last element
+    if(combination[i] == combination[i+1]) 
+      return 0;
+  }
+  return 1; //If the loop didn't return a false for any element, then it passed.
+}
+
+//Checks to see if there are more than 2 occassions of a digit in your combo.
+//This is done by having a tally array to count the occurance of each digit.
+//The array holds the occurance of each of its corresponding index.
+//ex: digit_tally[2] holds the amount of times 2 occurred in the string.
+int checkMoreThanTwoDuplicates(char* combination){
+  int length = strlen(combination);
+  int digit_tally[10];	//An index for each digit in the decimal system.
+  for(int i=0; i<10; i++){  //Initalize tally to 0.
+    digit_tally[i] = 0;
+  }
+  for(int i=0; i<length; i++){  //Counting the occurance of each digit
+    digit_tally[chartoi(combination[i])]++;
+  }
+  for(int i=0; i<10; i++){    //Checking the results
+    if(digit_tally[i] > 2) 
+      return 0;
+  }
+  return 1; //Passed
+}
+
+//Checks to see if the sum of all digits in the combination is a multiple
+//of the following integers (7, 11, 13, 17)
+int checkMultiplesOfValues(char* combination){
+  int length = strlen(combination);
+  int sum = 0;
+  for(int i=0; i<length; i++){
+    sum += chartoi(combination[i]);   //sum of each digit
+  }
+
+  if(sum%7 == 0 || sum%11 == 0 || sum%13 == 0 || sum%17 == 0) 
+    return 0;
+  else 
+    return 1;
+}
+
+//Checks if the integer value of the combination is a multiple of its length.
+int checkMultipleOfLength(char* combination){ 
+  if(atoi(combination) % strlen(combination) == 0) 
+    return 0;
+  else 
+    return 1;
+}
+
+//Converts a character to an integer.
+int chartoi(char c){ 
+  char tmp[2];
+  tmp[0] = c; tmp[1] = '\0';
+  return atoi(tmp);
+}
+
+//This is an ugly function, but basically....
+//Given some absolute_val starting at length low, this determines
+//it's relative value from low and creates a string representation.
+//ex: The 0th combination, starting at length 3, is "000";
+//ex: The 10th combination, starting at length 1, is "01";
+//ex: The 111th combination, starting at length 1, is 001;
+char* createStringValue(int absolute_val, int low){ 
+  int comb_length = low;
+  int offset = pow(DIGIT_BASE, comb_length); 
+  while(absolute_val >= offset){      
+    offset += pow(DIGIT_BASE, comb_length+1);
+    comb_length++;
+  }
+  offset -= pow(DIGIT_BASE, comb_length);
+
+  int relative_value = absolute_val - offset;          //Determining the value
+
+  char* string = malloc((comb_length+1)*sizeof(char)); //Creating string form.
+  sprintf(string, "%0*d",comb_length,relative_value);
+  return string;
 }
 
 
-//Restrictions for combinations ===============================================
-
-void checkCriteria(int localsize,int* localvalues, int* localresults){
-    //checkLeftAndRightDigit(localsize, localvalues, localresults);
-    //checkConsecutiveDuplicates(localsize, localvalues, localresults);
-    //checkMoreThanTwoDuplicates(localsize, localvalues, localresults);
-    //checkMultiplesOfValues(localsize, localvalues, localresults);
-    //checkMultipleOfLength(localsize, localvalues, localresults);
-}
-
-//Takes two arrays of some size, input some array of decimal numbers and it 
-//under goes a criteria. If it passes, then it's corresponding results value remains
-//1, otherwise, it becomes 0.
-void checkLeftAndRightDigit(int size, int* values , int* results){
-    for(int i=0; i<size; i++){
-        if(results[i] == 1){    //If the entry is still a possible solution
-
-            if(extractMostSignificantDigit(values[i]) == extractLeastSignificantDigit(values[i])){
-                results[i] = 0;     //Then it is no longer a possible solution.
-            }
-
-        }
-    }
-}
-
-void checkConsecutiveDuplicates(int size, int* values, int* results){
-    for(int i=0; i<size; i++){
-        if(results[i] == 1){
-
-            for(int j=0; j<length(values[i])-1; j++){
-                if(extractNthDigit(j, values[i]) == extractNthDigit(j+1, values[i])){
-                    results[i] = 0;
-                    break;
-                }
-            }
-
-        }
-    }
-}
-
-void checkMoreThanTwoDuplicates(int size, int* values, int* results){
-    int digitcount[10];		//Bucket counting the occurance of each digit
-    for(int i=0; i<size; i++){
-        if(results[i] == 1){
-
-            for(int j=0; j<10; j++){    //Setting and Refresh your digit count array
-                digitcount[j] = 0;
-            }
-            for(int j=0; j<length(values[i]); j++){
-                digitcount[ extractNthDigit(j, values[i])]++;
-            }
-            for(int j=0; j<10; j++){	//Now, we check the results of the bucket
-                if(digitcount[j] > 2){
-                    results[i] = 0;
-		    break;
-                }
-            }
-
-        }
-    }
-}
-
-void checkMultiplesOfValues(int size, int* values, int* results){
-    for(int i=0; i<size; i++){
-        if(results[i] == 1){
-            
-            int digitsum = 0;
-            for(int j=0; j<length(values[i]); j++){
-                digitsum += extractNthDigit(j, values[i]);
-            }
-            if(digitsum%7 == 0 || digitsum%11 == 0 || digitsum%13 == 0 || digitsum%17 == 0){
-                results[i] = 0;
-            }
-
-        }
-    }
-
-}
-
-void checkMultipleOfLength(int size, int* values, int* results){
-    for(int i=0; i<size; i++){
-        if(results[i] == 1){
-
-            if(values[i] % length(values[i]) == 0){
-                results[i] = 0;
-            }
-
-        }
-    }
-}
-
-//Helper functions===================================
-
-//Extracts the most significant digit
-
-int extractMostSignificantDigit(int n){
-    while (n >= 10){ 
-        n = n / 10;
-    }
-    return n;
-}
-
-//Extracts the least significant digit
-
-int extractLeastSignificantDigit(int n){
-    return n % 10;
-}
-
-//The 0th digit is the most significant digit
-int extractNthDigit(int digit, int value){
-    int len = length(value);
-    value = value/power(10,len - 1 - digit);
-    return value % 10;
-}
-
-//Gets the length of an integer
-
-int length( int n ){
-    int len = 0;
-    while (n>=10){
-        n = n/10;
-        len++;
-    }
-    return len;
+//Checks to see if enough arguments were specified for the program, 
+//highest_comb_len is greater than the lowest_comb_len, and checks if the 
+//restricted_digit is a decimal digit.
+void errorCheck(int id, int arg_count, char* arguments[]){
+  if(arg_count < 3){
+    if(id ==0)
+      printf("Not enough arguments specified. Ending program.\n");
+      MPI_Finalize();
+      exit(0);
+  }
+  else if(atoi(arguments[1]) > atoi(arguments[2])){ 
+    if(id == 0)
+      printf("Invalid combinations lengths. Ending program.\n"); 
+    MPI_Finalize();
+    exit(0);
+  }
+  else if(arg_count == 4 && (atoi(arguments[3]) < 0 || atoi(arguments[3]) > 9)){
+    if(id == 0){ printf("Invalid restricted digit value. Ending program.\n"); }
+    MPI_Finalize();
+    exit(0);
+  }
+  else
+    return;
 }
