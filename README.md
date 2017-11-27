@@ -1,5 +1,4 @@
 # Valid-Password-Counter
-A program that computes (in parallel) the amount of valid passwords within some numerical range.
 
 Given two integer arguments n,m, such that n < m, then the program will generate a pool of numerical passwords of length n to m.<br/><br/>
 <i>
